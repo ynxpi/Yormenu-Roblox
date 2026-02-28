@@ -1,0 +1,55 @@
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local Camera = workspace.CurrentCamera
+local LocalPlayer = Players.LocalPlayer
+
+-- Global Variables for Rayfield
+_G.AimAssistEnabled = false
+_G.AimStrength = 50 
+_G.AimFOV = 150
+_G.TargetPart = "Head" 
+
+local function GetClosestEnemy()
+    local closestEnemy = nil
+    local shortestDistance = _G.AimFOV
+
+    for _, player in pairs(Players:GetPlayers()) do
+        -- 1. Basic Checks: Is it me? Is the character loaded?
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild(_G.TargetPart) then
+            
+            -- 2. Team Check: Only target if they are on a different team
+            if player.Team ~= LocalPlayer.Team then
+                local targetPart = player.Character[_G.TargetPart]
+                local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
+                
+                if onScreen then
+                    -- 3. FOV Check: Calculate distance from center of screen
+                    local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+                    local mouseDistance = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
+                    
+                    if mouseDistance < shortestDistance then
+                        closestEnemy = targetPart
+                        shortestDistance = mouseDistance
+                    end
+                end
+            end
+        end
+    end
+    return closestEnemy
+end
+
+RunService.RenderStepped:Connect(function()
+    if not _G.AimAssistEnabled then return end
+    
+    local target = GetClosestEnemy()
+    if target then
+        -- Calculate the rotation needed to look at the target
+        local lookAt = CFrame.new(Camera.CFrame.Position, target.Position)
+        
+        -- The "Strength" Math:
+        -- 100 strength / 500 = 0.2 Lerp Alpha (Strong but not instant teleport)
+        -- 10 strength / 500 = 0.02 Lerp Alpha (Very subtle nudge)
+        local alpha = _G.AimStrength / 500
+        Camera.CFrame = Camera.CFrame:Lerp(lookAt, alpha)
+    end
+end)
