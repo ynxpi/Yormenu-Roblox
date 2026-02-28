@@ -8,6 +8,7 @@ function YorLib:CreateWindow(hubName)
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "YorSystem_Template"
     screenGui.ResetOnSpawn = false
+    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     screenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
 
     local mainFrame = Instance.new("Frame")
@@ -23,11 +24,12 @@ function YorLib:CreateWindow(hubName)
     local topBar = Instance.new("Frame")
     topBar.Size = UDim2.new(1, 0, 0, 35)
     topBar.BackgroundColor3 = Color3.fromRGB(60, 0, 0)
+    topBar.ZIndex = 100
     topBar.Parent = mainFrame
     
     local title = Instance.new("TextLabel")
-    title.Text = "  [ " .. hubName .. " ]"
-    title.Size = UDim2.new(1, -40, 1, 0)
+    title.Text = "  [ " .. hubName:upper() .. " ]"
+    title.Size = UDim2.new(1, -80, 1, 0)
     title.Position = UDim2.new(0, 10, 0, 0)
     title.BackgroundTransparency = 1
     title.TextColor3 = Color3.new(1,1,1)
@@ -35,6 +37,40 @@ function YorLib:CreateWindow(hubName)
     title.TextSize = 14
     title.TextXAlignment = Enum.TextXAlignment.Left
     title.Parent = topBar
+
+    -- CLOSE & MINIMIZE BUTTONS
+    local function createTopBtn(txt, xPos, color)
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(0, 35, 1, 0)
+        btn.Position = UDim2.new(1, xPos, 0, 0)
+        btn.BackgroundTransparency = 1
+        btn.Text = txt
+        btn.TextColor3 = color
+        btn.TextSize = 18
+        btn.Font = Enum.Font.Code
+        btn.ZIndex = 101
+        btn.Parent = topBar
+        return btn
+    end
+
+    local closeBtn = createTopBtn("X", -35, Color3.fromRGB(255, 0, 0))
+    local miniBtn = createTopBtn("-", -70, Color3.new(1,1,1))
+
+    closeBtn.MouseButton1Click:Connect(function() screenGui:Destroy() end)
+
+    local minimized = false
+    miniBtn.MouseButton1Click:Connect(function()
+        minimized = not minimized
+        local goalSize = minimized and UDim2.new(0, 550, 0, 35) or UDim2.new(0, 550, 0, 380)
+        TweenService:Create(mainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quart), {Size = goalSize}):Play()
+    end)
+
+    -- TOGGLE VISIBILITY KEYBIND (Left Control)
+    UserInputService.InputBegan:Connect(function(input, gpe)
+        if not gpe and input.KeyCode == Enum.KeyCode.LeftControl then
+            screenGui.Enabled = not screenGui.Enabled
+        end
+    end)
 
     -- SIDEBAR
     local sidebar = Instance.new("Frame")
@@ -44,10 +80,10 @@ function YorLib:CreateWindow(hubName)
     sidebar.BorderSizePixel = 0
     sidebar.Parent = mainFrame
     
-    local sideLayout = Instance.new("UIListLayout")
+    local sideLayout = Instance.new("UIListLayout", sidebar)
     sideLayout.Padding = UDim.new(0, 2)
     sideLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-    sideLayout.Parent = sidebar
+    Instance.new("UIPadding", sidebar).PaddingTop = UDim.new(0, 10)
 
     -- DRAGGING
     local dragging, dragStart, startPos
@@ -103,7 +139,7 @@ function YorLib:CreateWindow(hubName)
         firstTab = false
         local pageFunctions = {}
 
-        -- HELPER: This creates the actual components
+        -- COMPONENT HELPERS
         local function makeButton(parent, text, callback)
             local btn = Instance.new("TextButton")
             btn.Size = UDim2.new(0.95, 0, 0, 35)
@@ -115,13 +151,10 @@ function YorLib:CreateWindow(hubName)
             btn.TextXAlignment = Enum.TextXAlignment.Left
             btn.BorderSizePixel = 0
             btn.Parent = parent
-            
-            local accent = Instance.new("Frame")
+            local accent = Instance.new("Frame", btn)
             accent.Size = UDim2.new(0, 4, 1, 0)
             accent.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
             accent.BorderSizePixel = 0
-            accent.Parent = btn
-
             btn.MouseEnter:Connect(function()
                 TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(40, 0, 0), TextColor3 = Color3.new(1,1,1)}):Play()
                 TweenService:Create(accent, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(255, 0, 0)}):Play()
@@ -138,23 +171,18 @@ function YorLib:CreateWindow(hubName)
             frame.Size = UDim2.new(0.95, 0, 0, 32)
             frame.BackgroundTransparency = 1
             frame.Parent = parent
-
-            local box = Instance.new("TextButton")
+            local box = Instance.new("TextButton", frame)
             box.Size = UDim2.new(0, 20, 0, 20)
             box.Position = UDim2.new(0, 5, 0.5, -10)
             box.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
             box.Text = ""
             box.BorderSizePixel = 0
-            box.Parent = frame
             Instance.new("UIStroke", box).Color = Color3.fromRGB(255, 0, 0)
-
-            local inner = Instance.new("Frame")
+            local inner = Instance.new("Frame", box)
             inner.Size = UDim2.new(0, 0, 0, 0)
             inner.Position = UDim2.new(0.5, 0, 0.5, 0)
             inner.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-            inner.Parent = box
-
-            local label = Instance.new("TextLabel")
+            local label = Instance.new("TextLabel", frame)
             label.Size = UDim2.new(1, -40, 1, 0)
             label.Position = UDim2.new(0, 35, 0, 0)
             label.BackgroundTransparency = 1
@@ -163,8 +191,6 @@ function YorLib:CreateWindow(hubName)
             label.Font = Enum.Font.Code
             label.TextSize = 13
             label.TextXAlignment = Enum.TextXAlignment.Left
-            label.Parent = frame
-
             local active = false
             box.MouseButton1Click:Connect(function()
                 active = not active
@@ -174,12 +200,10 @@ function YorLib:CreateWindow(hubName)
         end
 
         local function makeSlider(parent, text, min, max, callback)
-            local sliderFrame = Instance.new("Frame")
+            local sliderFrame = Instance.new("Frame", parent)
             sliderFrame.Size = UDim2.new(0.95, 0, 0, 45)
             sliderFrame.BackgroundTransparency = 1
-            sliderFrame.Parent = parent
-
-            local label = Instance.new("TextLabel")
+            local label = Instance.new("TextLabel", sliderFrame)
             label.Size = UDim2.new(1, 0, 0, 20)
             label.Text = text .. " : " .. min
             label.TextColor3 = Color3.new(1,1,1)
@@ -187,26 +211,17 @@ function YorLib:CreateWindow(hubName)
             label.Font = Enum.Font.Code
             label.TextSize = 13
             label.TextXAlignment = Enum.TextXAlignment.Left
-            label.Parent = sliderFrame
-
-            local track = Instance.new("Frame")
+            local track = Instance.new("Frame", sliderFrame)
             track.Size = UDim2.new(1, -10, 0, 4)
             track.Position = UDim2.new(0, 5, 0.7, 0)
             track.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-            track.BorderSizePixel = 0
-            track.Parent = sliderFrame
-
-            local fill = Instance.new("Frame")
+            local fill = Instance.new("Frame", track)
             fill.Size = UDim2.new(0, 0, 1, 0)
             fill.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-            fill.Parent = track
-            
-            local handle = Instance.new("Frame")
+            local handle = Instance.new("Frame", track)
             handle.Size = UDim2.new(0, 10, 0, 14)
             handle.AnchorPoint = Vector2.new(0.5, 0.5)
             handle.BackgroundColor3 = Color3.new(1,1,1)
-            handle.Parent = track 
-            
             local function update(input)
                 local ratio = math.clamp((input.Position.X - track.AbsolutePosition.X) / track.AbsoluteSize.X, 0, 1)
                 fill.Size = UDim2.new(ratio, 0, 1, 0)
@@ -215,7 +230,6 @@ function YorLib:CreateWindow(hubName)
                 label.Text = text .. " : " .. value
                 callback(value)
             end
-
             track.InputBegan:Connect(function(input)
                 if input.UserInputType == Enum.UserInputType.MouseButton1 then
                     local moveConn
@@ -230,20 +244,18 @@ function YorLib:CreateWindow(hubName)
             end)
         end
 
-        -- PAGE EXPORT FUNCTIONS
+        -- EXPORTS
         function pageFunctions:CreateButton(t, c) makeButton(page, t, c) end
         function pageFunctions:CreateToggle(t, c) makeToggle(page, t, c) end
         function pageFunctions:CreateSlider(t, min, max, c) makeSlider(page, t, min, max, c) end
 
         function pageFunctions:CreateDropdown(text)
-            local dropFrame = Instance.new("Frame")
+            local dropFrame = Instance.new("Frame", page)
             dropFrame.Size = UDim2.new(0.95, 0, 0, 35)
             dropFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
             dropFrame.ClipsDescendants = true
             dropFrame.BorderSizePixel = 0
-            dropFrame.Parent = page
-            
-            local mainBtn = Instance.new("TextButton")
+            local mainBtn = Instance.new("TextButton", dropFrame)
             mainBtn.Size = UDim2.new(1, 0, 0, 35)
             mainBtn.BackgroundTransparency = 1
             mainBtn.Text = "   " .. text:upper()
@@ -251,32 +263,24 @@ function YorLib:CreateWindow(hubName)
             mainBtn.Font = Enum.Font.Code
             mainBtn.TextSize = 13
             mainBtn.TextXAlignment = Enum.TextXAlignment.Left
-            mainBtn.Parent = dropFrame
-
-            local container = Instance.new("Frame")
-            container.Size = UDim2.new(1, -10, 0, 0) -- Starts at 0 height
+            local container = Instance.new("Frame", dropFrame)
+            container.Size = UDim2.new(1, -10, 0, 0)
             container.Position = UDim2.new(0, 10, 0, 40)
             container.BackgroundTransparency = 1
             container.AutomaticSize = Enum.AutomaticSize.Y
-            container.Parent = dropFrame
             local dropLayout = Instance.new("UIListLayout", container)
             dropLayout.Padding = UDim.new(0, 8)
-
             mainBtn.MouseButton1Click:Connect(function()
                 local isOpen = dropFrame.Size.Y.Offset > 40
                 local targetHeight = isOpen and 35 or (dropLayout.AbsoluteContentSize.Y + 50)
                 TweenService:Create(dropFrame, TweenInfo.new(0.3), {Size = UDim2.new(0.95, 0, 0, targetHeight)}):Play()
             end)
-
-            -- THE FIX: Dropdown returns its own set of creators that point to 'container'
             local dropFunctions = {}
             function dropFunctions:CreateButton(t, c) makeButton(container, t, c) end
             function dropFunctions:CreateToggle(t, c) makeToggle(container, t, c) end
             function dropFunctions:CreateSlider(t, min, max, c) makeSlider(container, t, min, max, c) end
-            
             return dropFunctions
         end
-
         return pageFunctions
     end
     return tabContainer
