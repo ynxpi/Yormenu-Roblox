@@ -49,16 +49,11 @@ function YorLib:CreateWindow(hubName)
     sideLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
     sideLayout.Parent = sidebar
 
-    local tabContainer = {}
-    local firstTab = true
-
-    -- DRAGGING LOGIC
+    -- DRAGGING
     local dragging, dragStart, startPos
     topBar.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = true
-            dragStart = input.Position
-            startPos = mainFrame.Position
+            dragging = true dragStart = input.Position startPos = mainFrame.Position
         end
     end)
     UserInputService.InputChanged:Connect(function(input)
@@ -71,7 +66,9 @@ function YorLib:CreateWindow(hubName)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
     end)
 
-    -- WINDOW FUNCTIONS
+    local tabContainer = {}
+    local firstTab = true
+
     function tabContainer:CreateTab(tabName)
         local page = Instance.new("ScrollingFrame")
         page.Size = UDim2.new(1, -150, 1, -55)
@@ -83,7 +80,8 @@ function YorLib:CreateWindow(hubName)
         page.ScrollBarImageColor3 = Color3.fromRGB(255,0,0)
         page.AutomaticCanvasSize = Enum.AutomaticSize.Y
         page.Parent = mainFrame
-        Instance.new("UIListLayout", page).Padding = UDim.new(0, 10)
+        local pageLayout = Instance.new("UIListLayout", page)
+        pageLayout.Padding = UDim.new(0, 10)
         
         local tabBtn = Instance.new("TextButton")
         tabBtn.Size = UDim2.new(0.9, 0, 0, 35)
@@ -105,8 +103,8 @@ function YorLib:CreateWindow(hubName)
         firstTab = false
         local pageFunctions = {}
 
-        -- COMPONENT: BUTTON
-        function pageFunctions:CreateButton(text, callback)
+        -- HELPER: This creates the actual components
+        local function makeButton(parent, text, callback)
             local btn = Instance.new("TextButton")
             btn.Size = UDim2.new(0.95, 0, 0, 35)
             btn.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
@@ -116,7 +114,7 @@ function YorLib:CreateWindow(hubName)
             btn.TextSize = 13
             btn.TextXAlignment = Enum.TextXAlignment.Left
             btn.BorderSizePixel = 0
-            btn.Parent = page
+            btn.Parent = parent
             
             local accent = Instance.new("Frame")
             accent.Size = UDim2.new(0, 4, 1, 0)
@@ -135,12 +133,11 @@ function YorLib:CreateWindow(hubName)
             btn.MouseButton1Click:Connect(callback)
         end
 
-        -- COMPONENT: TOGGLE
-        function pageFunctions:CreateToggle(text, callback)
+        local function makeToggle(parent, text, callback)
             local frame = Instance.new("Frame")
             frame.Size = UDim2.new(0.95, 0, 0, 32)
             frame.BackgroundTransparency = 1
-            frame.Parent = page
+            frame.Parent = parent
 
             local box = Instance.new("TextButton")
             box.Size = UDim2.new(0, 20, 0, 20)
@@ -176,12 +173,11 @@ function YorLib:CreateWindow(hubName)
             end)
         end
 
-        -- COMPONENT: SLIDER
-        function pageFunctions:CreateSlider(text, min, max, callback)
+        local function makeSlider(parent, text, min, max, callback)
             local sliderFrame = Instance.new("Frame")
             sliderFrame.Size = UDim2.new(0.95, 0, 0, 45)
             sliderFrame.BackgroundTransparency = 1
-            sliderFrame.Parent = page
+            sliderFrame.Parent = parent
 
             local label = Instance.new("TextLabel")
             label.Size = UDim2.new(1, 0, 0, 20)
@@ -234,7 +230,11 @@ function YorLib:CreateWindow(hubName)
             end)
         end
 
-        -- COMPONENT: DROPDOWN
+        -- PAGE EXPORT FUNCTIONS
+        function pageFunctions:CreateButton(t, c) makeButton(page, t, c) end
+        function pageFunctions:CreateToggle(t, c) makeToggle(page, t, c) end
+        function pageFunctions:CreateSlider(t, min, max, c) makeSlider(page, t, min, max, c) end
+
         function pageFunctions:CreateDropdown(text)
             local dropFrame = Instance.new("Frame")
             dropFrame.Size = UDim2.new(0.95, 0, 0, 35)
@@ -254,24 +254,27 @@ function YorLib:CreateWindow(hubName)
             mainBtn.Parent = dropFrame
 
             local container = Instance.new("Frame")
-            container.Size = UDim2.new(1, -10, 1, -40)
+            container.Size = UDim2.new(1, -10, 0, 0) -- Starts at 0 height
             container.Position = UDim2.new(0, 10, 0, 40)
             container.BackgroundTransparency = 1
+            container.AutomaticSize = Enum.AutomaticSize.Y
             container.Parent = dropFrame
-            Instance.new("UIListLayout", container).Padding = UDim.new(0, 8)
+            local dropLayout = Instance.new("UIListLayout", container)
+            dropLayout.Padding = UDim.new(0, 8)
 
             mainBtn.MouseButton1Click:Connect(function()
                 local isOpen = dropFrame.Size.Y.Offset > 40
-                local targetHeight = isOpen and 35 or (container:FindFirstChildOfClass("UIListLayout").AbsoluteContentSize.Y + 50)
+                local targetHeight = isOpen and 35 or (dropLayout.AbsoluteContentSize.Y + 50)
                 TweenService:Create(dropFrame, TweenInfo.new(0.3), {Size = UDim2.new(0.95, 0, 0, targetHeight)}):Play()
             end)
 
-            -- This allows dropping things INTO the dropdown
+            -- THE FIX: Dropdown returns its own set of creators that point to 'container'
             local dropFunctions = {}
-            function dropFunctions:CreateButton(t, c) pageFunctions.CreateButton({Parent = container}, t, c) end
-            function dropFunctions:CreateToggle(t, c) pageFunctions.CreateToggle({Parent = container}, t, c) end
-            -- (Simplified for template: Pass container as parent)
-            return pageFunctions -- Or unique dropFunctions table
+            function dropFunctions:CreateButton(t, c) makeButton(container, t, c) end
+            function dropFunctions:CreateToggle(t, c) makeToggle(container, t, c) end
+            function dropFunctions:CreateSlider(t, min, max, c) makeSlider(container, t, min, max, c) end
+            
+            return dropFunctions
         end
 
         return pageFunctions
