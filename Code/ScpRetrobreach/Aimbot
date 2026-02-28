@@ -1,35 +1,41 @@
 local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
 local Camera = workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 
--- Global Variables for Rayfield
+-- // Global Variables (Shared with Rayfield)
 _G.AimAssistEnabled = false
 _G.AimStrength = 50 
 _G.AimFOV = 150
-_G.TargetPart = "Head" 
+_G.TargetPart = "Head"
+
+-- // Create FOV Circle
+local FOVCircle = Drawing.new("Circle")
+FOVCircle.Visible = false
+FOVCircle.Color = Color3.fromRGB(255, 255, 255)
+FOVCircle.Thickness = 1
+FOVCircle.NumSides = 64
+FOVCircle.Radius = _G.AimFOV
+FOVCircle.Filled = false
+FOVCircle.Transparency = 1
 
 local function GetClosestEnemy()
     local closestEnemy = nil
     local shortestDistance = _G.AimFOV
 
     for _, player in pairs(Players:GetPlayers()) do
-        -- 1. Basic Checks: Is it me? Is the character loaded?
-        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild(_G.TargetPart) then
-            
-            -- 2. Team Check: Only target if they are on a different team
-            if player.Team ~= LocalPlayer.Team then
-                local targetPart = player.Character[_G.TargetPart]
-                local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
-                
+        if player ~= LocalPlayer and player.Team ~= LocalPlayer.Team and player.Character then
+            local targetObj = player.Character:FindFirstChild(_G.TargetPart)
+            if targetObj then
+                local screenPos, onScreen = Camera:WorldToViewportPoint(targetObj.Position)
                 if onScreen then
-                    -- 3. FOV Check: Calculate distance from center of screen
                     local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-                    local mouseDistance = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
+                    local dist = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
                     
-                    if mouseDistance < shortestDistance then
-                        closestEnemy = targetPart
-                        shortestDistance = mouseDistance
+                    if dist < shortestDistance then
+                        closestEnemy = targetObj
+                        shortestDistance = dist
                     end
                 end
             end
@@ -39,17 +45,22 @@ local function GetClosestEnemy()
 end
 
 RunService.RenderStepped:Connect(function()
-    if not _G.AimAssistEnabled then return end
-    
-    local target = GetClosestEnemy()
-    if target then
-        -- Calculate the rotation needed to look at the target
-        local lookAt = CFrame.new(Camera.CFrame.Position, target.Position)
+    -- Update FOV Circle Position and Size
+    FOVCircle.Visible = _G.AimAssistEnabled
+    FOVCircle.Radius = _G.AimFOV
+    FOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+
+    if _G.AimAssistEnabled then
+        -- Check if Right Mouse Button is being HELD
+        local isHoldingRightClick = UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
         
-        -- The "Strength" Math:
-        -- 100 strength / 500 = 0.2 Lerp Alpha (Strong but not instant teleport)
-        -- 10 strength / 500 = 0.02 Lerp Alpha (Very subtle nudge)
-        local alpha = _G.AimStrength / 500
-        Camera.CFrame = Camera.CFrame:Lerp(lookAt, alpha)
+        if isHoldingRightClick then
+            local target = GetClosestEnemy()
+            if target then
+                local lookAt = CFrame.new(Camera.CFrame.Position, target.Position)
+                local alpha = _G.AimStrength / 500
+                Camera.CFrame = Camera.CFrame:Lerp(lookAt, alpha)
+            end
+        end
     end
 end)
