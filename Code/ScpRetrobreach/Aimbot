@@ -4,13 +4,13 @@ local Players = game:GetService("Players")
 local Camera = workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 
--- // Global Settings
+-- // Settings
 _G.AimAssistEnabled = false
 _G.AimStrength = 50 
 _G.AimFOV = 150
 _G.TargetPart = "Head"
 
--- // FOV Circle Visual
+-- // FOV Circle
 local FOVCircle = Drawing.new("Circle")
 FOVCircle.Visible = false
 FOVCircle.Color = Color3.fromRGB(255, 255, 255)
@@ -20,15 +20,15 @@ FOVCircle.Radius = _G.AimFOV
 local function GetClosestEnemy()
     local closestEnemy = nil
     local shortestDistance = _G.AimFOV
-    local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
 
     for _, player in pairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Team ~= LocalPlayer.Team and player.Character then
             local part = player.Character:FindFirstChild(_G.TargetPart)
             if part then
-                local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
+                local pos, onScreen = Camera:WorldToViewportPoint(part.Position)
                 if onScreen then
-                    local dist = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
+                    local dist = (Vector2.new(pos.X, pos.Y) - center).Magnitude
                     if dist < shortestDistance then
                         closestEnemy = part
                         shortestDistance = dist
@@ -41,29 +41,26 @@ local function GetClosestEnemy()
 end
 
 RunService.RenderStepped:Connect(function()
-    -- 1. Sync FOV Circle
+    -- Circle Sync
     FOVCircle.Visible = _G.AimAssistEnabled
     FOVCircle.Radius = _G.AimFOV
     FOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
 
-    -- 2. If Master Toggle is OFF, do nothing
+    -- If the master toggle is off, stop everything
     if not _G.AimAssistEnabled then return end
 
-    -- 3. Check Input State
-    local isRightClickHeld = UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
-    
-    if isRightClickHeld then
-        -- PERFORM AIM ASSIST
+    -- THE FIX: Explicitly check the real-time state of the Right Mouse Button
+    local holdingRightClick = UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
+
+    if holdingRightClick then
         local target = GetClosestEnemy()
         if target then
             local lookAt = CFrame.new(Camera.CFrame.Position, target.Position)
-            local smoothness = math.clamp(_G.AimStrength / 500, 0, 1)
+            -- We use a smaller multiplier (1000) for more control
+            local lerpSpeed = math.clamp(_G.AimStrength / 1000, 0, 1)
             
-            Camera.CFrame = Camera.CFrame:Lerp(lookAt, smoothness)
+            Camera.CFrame = Camera.CFrame:Lerp(lookAt, lerpSpeed)
         end
-    else
-        -- FORCE STOP: When not holding the button, ensure we aren't overriding the camera
-        -- This empty 'else' block ensures the 'if' logic above is skipped entirely
-        return
     end
+    -- If 'holdingRightClick' is false, the code simply does nothing this frame.
 end)
