@@ -1,0 +1,96 @@
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local Camera = workspace.CurrentCamera
+local LocalPlayer = Players.LocalPlayer
+
+-- Global Toggle
+_G.TeamESP_Enabled = false
+
+-- Team Color Configuration
+-- Add or change names here to match your game's team names
+local TeamSettings = {
+    ["SCP"] = Color3.fromRGB(255, 0, 0),          -- Red
+    ["Class-D"] = Color3.fromRGB(255, 165, 0),    -- Orange
+    ["Foundation"] = Color3.fromRGB(0, 100, 255), -- Blue
+    ["Chaos Insurgency"] = Color3.fromRGB(0, 150, 0), -- Green
+    ["Neutral"] = Color3.fromRGB(255, 255, 255)   -- White
+}
+
+local ActiveESP = {}
+
+local function CreateBox()
+    local lines = {}
+    for i = 1, 8 do
+        local line = Drawing.new("Line")
+        line.Visible = false
+        line.Thickness = 2
+        line.Transparency = 1
+        lines[i] = line
+    end
+    return lines
+end
+
+local function TrackPlayer(player)
+    if player == LocalPlayer then return end
+    
+    local lines = CreateBox()
+    
+    local connection
+    connection = RunService.RenderStepped:Connect(function()
+        if _G.TeamESP_Enabled and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            local root = player.Character.HumanoidRootPart
+            local screenPos, onScreen = Camera:WorldToViewportPoint(root.Position)
+            
+            if onScreen then
+                -- Set color based on Team Name
+                local teamColor = TeamSettings[player.Team.Name] or Color3.fromRGB(255, 255, 255)
+                local _, size = player.Character:GetBoundingBox()
+                
+                local dist = (Camera.CFrame.Position - root.Position).Magnitude
+                local offset = math.clamp(1/dist * 750, 2, 30)
+                
+                local top = Camera:WorldToViewportPoint((root.CFrame * CFrame.new(0, size.Y/2, 0)).Position)
+                local bottom = Camera:WorldToViewportPoint((root.CFrame * CFrame.new(0, -size.Y/2, 0)).Position)
+                local height = math.abs(top.Y - bottom.Y)
+                local width = height / 1.5
+
+                local TL = Vector2.new(screenPos.X - width/2, screenPos.Y - height/2)
+                local TR = Vector2.new(screenPos.X + width/2, screenPos.Y - height/2)
+                local BL = Vector2.new(screenPos.X - width/2, screenPos.Y + height/2)
+                local BR = Vector2.new(screenPos.X + width/2, screenPos.Y + height/2)
+
+                for i, line in pairs(lines) do
+                    line.Color = teamColor
+                    line.Visible = true
+                end
+
+                lines[1].From = TL; lines[1].To = TL + Vector2.new(offset, 0)
+                lines[2].From = TL; lines[2].To = TL + Vector2.new(0, offset)
+                lines[3].From = TR; lines[3].To = TR + Vector2.new(-offset, 0)
+                lines[4].From = TR; lines[4].To = TR + Vector2.new(0, offset)
+                lines[5].From = BL; lines[5].To = BL + Vector2.new(offset, 0)
+                lines[6].From = BL; lines[6].To = BL + Vector2.new(0, -offset)
+                lines[7].From = BR; lines[7].To = BR + Vector2.new(-offset, 0)
+                lines[8].From = BR; lines[8].To = BR + Vector2.new(0, -offset)
+            else
+                for _, l in pairs(lines) do l.Visible = false end
+            end
+        else
+            for _, l in pairs(lines) do l.Visible = false end
+            if not player or not player.Parent then
+                for _, l in pairs(lines) do l:Remove() end
+                connection:Disconnect()
+            end
+        end
+    end)
+end
+
+-- Initialize for current and new players
+for _, player in pairs(Players:GetPlayers()) do
+    TrackPlayer(player)
+end
+Players.PlayerAdded:Connect(TrackPlayer)
+
+-- Rayfield Global Functions
+_G.EnableTeamESP = function() _G.TeamESP_Enabled = true end
+_G.DisableTeamESP = function() _G.TeamESP_Enabled = false end
