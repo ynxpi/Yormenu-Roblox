@@ -4,13 +4,13 @@ local Players = game:GetService("Players")
 local Camera = workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 
--- // Global Variables (Shared with Rayfield)
+-- // Global Settings (Managed by your Rayfield Sliders/Toggles)
 _G.AimAssistEnabled = false
 _G.AimStrength = 50 
 _G.AimFOV = 150
 _G.TargetPart = "Head"
 
--- // Create FOV Circle
+-- // Create FOV Circle Visual
 local FOVCircle = Drawing.new("Circle")
 FOVCircle.Visible = false
 FOVCircle.Color = Color3.fromRGB(255, 255, 255)
@@ -20,21 +20,24 @@ FOVCircle.Radius = _G.AimFOV
 FOVCircle.Filled = false
 FOVCircle.Transparency = 1
 
+-- // Function to find the closest enemy within FOV
 local function GetClosestEnemy()
     local closestEnemy = nil
     local shortestDistance = _G.AimFOV
 
     for _, player in pairs(Players:GetPlayers()) do
+        -- Team Check and basic validation
         if player ~= LocalPlayer and player.Team ~= LocalPlayer.Team and player.Character then
-            local targetObj = player.Character:FindFirstChild(_G.TargetPart)
-            if targetObj then
-                local screenPos, onScreen = Camera:WorldToViewportPoint(targetObj.Position)
+            local part = player.Character:FindFirstChild(_G.TargetPart)
+            if part then
+                local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
                 if onScreen then
                     local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
                     local dist = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
                     
+                    -- Check if they are within the FOV radius
                     if dist < shortestDistance then
-                        closestEnemy = targetObj
+                        closestEnemy = part
                         shortestDistance = dist
                     end
                 end
@@ -44,21 +47,23 @@ local function GetClosestEnemy()
     return closestEnemy
 end
 
+-- // Main Loop
 RunService.RenderStepped:Connect(function()
-    -- Update FOV Circle Position and Size
+    -- Sync FOV Circle to Settings
     FOVCircle.Visible = _G.AimAssistEnabled
     FOVCircle.Radius = _G.AimFOV
     FOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
 
     if _G.AimAssistEnabled then
-        -- Check if Right Mouse Button is being HELD
-        local isHoldingRightClick = UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
-        
-        if isHoldingRightClick then
+        -- Only move camera if Right Mouse Button is actively HELD
+        if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
             local target = GetClosestEnemy()
             if target then
                 local lookAt = CFrame.new(Camera.CFrame.Position, target.Position)
-                local alpha = _G.AimStrength / 500
+                
+                -- Smoothing math (Strength 1-100 converted to Alpha)
+                local alpha = math.clamp(_G.AimStrength / 500, 0, 1)
+                
                 Camera.CFrame = Camera.CFrame:Lerp(lookAt, alpha)
             end
         end
