@@ -3,7 +3,7 @@ local Players = game:GetService("Players")
 local Camera = workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 
-_G.TeamESP_Enabled = true
+_G.TeamESP_Enabled = false
 
 local function CreateESP()
     local labels = {
