@@ -3,94 +3,113 @@ local Players = game:GetService("Players")
 local Camera = workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 
--- Global Toggle
-_G.TeamESP_Enabled = false
+_G.TeamESP_Enabled = true
 
--- Team Color Configuration
--- Add or change names here to match your game's team names
-local TeamSettings = {
-    ["SCP"] = Color3.fromRGB(255, 0, 0),          -- Red
-    ["Class-D"] = Color3.fromRGB(255, 165, 0),    -- Orange
-    ["Foundation"] = Color3.fromRGB(0, 100, 255), -- Blue
-    ["Chaos Insurgency"] = Color3.fromRGB(0, 150, 0), -- Green
-    ["Neutral"] = Color3.fromRGB(255, 255, 255)   -- White
-}
+local function CreateESP()
+    local labels = {
+        Box = {}, -- Corner Box Lines
+        HealthBar = Drawing.new("Line"),
+        HealthBarBG = Drawing.new("Line"),
+        Info = Drawing.new("Text")
+    }
 
-local ActiveESP = {}
-
-local function CreateBox()
-    local lines = {}
+    -- Initialize 8 lines for the corner box
     for i = 1, 8 do
         local line = Drawing.new("Line")
+        line.Thickness = 1
         line.Visible = false
-        line.Thickness = 2
-        line.Transparency = 1
-        lines[i] = line
+        labels.Box[i] = line
     end
-    return lines
+
+    -- Setup Health Bar
+    labels.HealthBar.Thickness = 2
+    labels.HealthBarBG.Thickness = 2
+    labels.HealthBarBG.Color = Color3.fromRGB(0, 0, 0)
+    
+    -- Setup Text
+    labels.Info.Size = 14
+    labels.Info.Center = true
+    labels.Info.Outline = true
+    labels.Info.Color = Color3.fromRGB(255, 255, 255)
+
+    return labels
 end
 
 local function TrackPlayer(player)
     if player == LocalPlayer then return end
-    
-    local lines = CreateBox()
-    
+    local esp = CreateESP()
+
     local connection
     connection = RunService.RenderStepped:Connect(function()
-        if _G.TeamESP_Enabled and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-            local root = player.Character.HumanoidRootPart
-            local screenPos, onScreen = Camera:WorldToViewportPoint(root.Position)
+        local char = player.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+
+        if _G.TeamESP_Enabled and char and hum and root and hum.Health > 0 then
+            local pos, onScreen = Camera:WorldToViewportPoint(root.Position)
             
             if onScreen then
-                -- Set color based on Team Name
-                local teamColor = TeamSettings[player.Team.Name] or Color3.fromRGB(255, 255, 255)
-                local _, size = player.Character:GetBoundingBox()
-                
+                -- 1. Auto-Team Color Logic
+                local teamColor = player.TeamColor.Color
                 local dist = (Camera.CFrame.Position - root.Position).Magnitude
-                local offset = math.clamp(1/dist * 750, 2, 30)
                 
+                -- 2. Box Calculations
+                local _, size = char:GetBoundingBox()
                 local top = Camera:WorldToViewportPoint((root.CFrame * CFrame.new(0, size.Y/2, 0)).Position)
                 local bottom = Camera:WorldToViewportPoint((root.CFrame * CFrame.new(0, -size.Y/2, 0)).Position)
                 local height = math.abs(top.Y - bottom.Y)
                 local width = height / 1.5
+                local offset = height / 4
 
-                local TL = Vector2.new(screenPos.X - width/2, screenPos.Y - height/2)
-                local TR = Vector2.new(screenPos.X + width/2, screenPos.Y - height/2)
-                local BL = Vector2.new(screenPos.X - width/2, screenPos.Y + height/2)
-                local BR = Vector2.new(screenPos.X + width/2, screenPos.Y + height/2)
+                local TL = Vector2.new(pos.X - width/2, pos.Y - height/2)
+                local TR = Vector2.new(pos.X + width/2, pos.Y - height/2)
+                local BL = Vector2.new(pos.X - width/2, pos.Y + height/2)
+                local BR = Vector2.new(pos.X + width/2, pos.Y + height/2)
 
-                for i, line in pairs(lines) do
-                    line.Color = teamColor
-                    line.Visible = true
-                end
+                -- 3. Draw Corner Box
+                for _, line in pairs(esp.Box) do line.Color = teamColor; line.Visible = true end
+                esp.Box[1].From = TL; esp.Box[1].To = TL + Vector2.new(offset, 0)
+                esp.Box[2].From = TL; esp.Box[2].To = TL + Vector2.new(0, offset)
+                esp.Box[3].From = TR; esp.Box[3].To = TR + Vector2.new(-offset, 0)
+                esp.Box[4].From = TR; esp.Box[4].To = TR + Vector2.new(0, offset)
+                esp.Box[5].From = BL; esp.Box[5].To = BL + Vector2.new(offset, 0)
+                esp.Box[6].From = BL; esp.Box[6].To = BL + Vector2.new(0, -offset)
+                esp.Box[7].From = BR; esp.Box[7].To = BR + Vector2.new(-offset, 0)
+                esp.Box[8].From = BR; esp.Box[8].To = BR + Vector2.new(0, -offset)
 
-                lines[1].From = TL; lines[1].To = TL + Vector2.new(offset, 0)
-                lines[2].From = TL; lines[2].To = TL + Vector2.new(0, offset)
-                lines[3].From = TR; lines[3].To = TR + Vector2.new(-offset, 0)
-                lines[4].From = TR; lines[4].To = TR + Vector2.new(0, offset)
-                lines[5].From = BL; lines[5].To = BL + Vector2.new(offset, 0)
-                lines[6].From = BL; lines[6].To = BL + Vector2.new(0, -offset)
-                lines[7].From = BR; lines[7].To = BR + Vector2.new(-offset, 0)
-                lines[8].From = BR; lines[8].To = BR + Vector2.new(0, -offset)
+                -- 4. Draw Health Bar (Left Side)
+                local healthPercent = hum.Health / hum.MaxHealth
+                local barX = TL.X - 5
+                esp.HealthBarBG.Visible = true
+                esp.HealthBarBG.From = Vector2.new(barX, BL.Y)
+                esp.HealthBarBG.To = Vector2.new(barX, TL.Y)
+
+                esp.HealthBar.Visible = true
+                esp.HealthBar.Color = Color3.fromHSV(healthPercent * 0.3, 1, 1) -- Green to Red
+                esp.HealthBar.From = Vector2.new(barX, BL.Y)
+                esp.HealthBar.To = Vector2.new(barX, BL.Y - (height * healthPercent))
+
+                -- 5. Draw Info Text (Bottom)
+                esp.Info.Visible = true
+                esp.Info.Position = Vector2.new(pos.X, BR.Y + 2)
+                esp.Info.Text = string.format("%s\n[%d m]", player.Name, math.floor(dist))
             else
-                for _, l in pairs(lines) do l.Visible = false end
+                for _, v in pairs(esp.Box) do v.Visible = false end
+                esp.HealthBar.Visible = false; esp.HealthBarBG.Visible = false; esp.Info.Visible = false
             end
         else
-            for _, l in pairs(lines) do l.Visible = false end
-            if not player or not player.Parent then
-                for _, l in pairs(lines) do l:Remove() end
+            -- Cleanup/Hide
+            for _, v in pairs(esp.Box) do v.Visible = false end
+            esp.HealthBar.Visible = false; esp.HealthBarBG.Visible = false; esp.Info.Visible = false
+            if not player.Parent then
                 connection:Disconnect()
+                -- Remove from memory
+                for _, v in pairs(esp.Box) do v:Remove() end
+                esp.HealthBar:Remove(); esp.HealthBarBG:Remove(); esp.Info:Remove()
             end
         end
     end)
 end
 
--- Initialize for current and new players
-for _, player in pairs(Players:GetPlayers()) do
-    TrackPlayer(player)
-end
+for _, p in pairs(Players:GetPlayers()) do TrackPlayer(p) end
 Players.PlayerAdded:Connect(TrackPlayer)
-
--- Rayfield Global Functions
-_G.EnableTeamESP = function() _G.TeamESP_Enabled = true end
-_G.DisableTeamESP = function() _G.TeamESP_Enabled = false end
