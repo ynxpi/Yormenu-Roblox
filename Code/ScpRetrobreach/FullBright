@@ -1,0 +1,32 @@
+local Lighting = game:GetService("Lighting")
+
+-- Store original settings to restore them later
+local OriginalSettings = {
+    Brightness = Lighting.Brightness,
+    ClockTime = Lighting.ClockTime,
+    FogEnd = Lighting.FogEnd,
+    GlobalShadows = Lighting.GlobalShadows,
+    Ambient = Lighting.Ambient
+}
+
+_G.FullBrightEnabled = false
+
+local function ToggleFullBright(Value)
+    _G.FullBrightEnabled = Value
+    
+    if _G.FullBrightEnabled then
+        -- Set to Full Bright
+        Lighting.Brightness = 2
+        Lighting.ClockTime = 14
+        Lighting.FogEnd = 100000
+        Lighting.GlobalShadows = false
+        Lighting.Ambient = Color3.fromRGB(255, 255, 255)
+    else
+        -- Restore Original Settings
+        Lighting.Brightness = OriginalSettings.Brightness
+        Lighting.ClockTime = OriginalSettings.ClockTime
+        Lighting.FogEnd = OriginalSettings.FogEnd
+        Lighting.GlobalShadows = OriginalSettings.GlobalShadows
+        Lighting.Ambient = OriginalSettings.Ambient
+    end
+end
