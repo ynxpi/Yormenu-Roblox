@@ -4,70 +4,62 @@ local Players = game:GetService("Players")
 local Camera = workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 
--- // Configuration
-_G.AssistEnabled = true
-_G.AssistStrength = 50 -- 1 to 100 (Converted to 0.01 - 0.1 in math)
-_G.AssistFOV = 150
-_G.TargetPart = "Head"
+-- // Initialization of Globals (Start as False/Default)
+_G.AimAssistEnabled = false
+_G.AimStrength = 50 
+_G.AimFOV = 150
+_G.FOVVisible = false -- Added this specifically for the circle toggle
 
--- // Initialize FOV Circle
+-- // Create FOV Circle
 local FOVCircle = Drawing.new("Circle")
-FOVCircle.Visible = false
-FOVCircle.Color = Color3.fromRGB(255, 255, 255) -- White
+FOVCircle.Visible = false -- Starts as false
+FOVCircle.Color = Color3.fromRGB(255, 255, 255)
 FOVCircle.Thickness = 1
 FOVCircle.NumSides = 64
-FOVCircle.Radius = _G.AssistFOV
+FOVCircle.Radius = _G.AimFOV
 FOVCircle.Filled = false
 FOVCircle.Transparency = 1
 
-local function GetClosestTarget()
-    local closest = nil
-    local shortestDist = _G.AssistFOV
+local function GetClosestEnemy()
+    local closestEnemy = nil
+    local shortestDistance = _G.AimFOV
     local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
 
     for _, player in pairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Team ~= LocalPlayer.Team and player.Character then
-            local part = player.Character:FindFirstChild(_G.TargetPart)
-            local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
-            
-            -- Basic checks to make sure they are alive and have a part to hit
-            if part and humanoid and humanoid.Health > 0 then
-                local pos, onScreen = Camera:WorldToViewportPoint(part.Position)
+            local head = player.Character:FindFirstChild("Head")
+            if head then
+                local pos, onScreen = Camera:WorldToViewportPoint(head.Position)
                 if onScreen then
                     local dist = (Vector2.new(pos.X, pos.Y) - center).Magnitude
-                    if dist < shortestDist then
-                        closest = part
-                        shortestDist = dist
+                    if dist < shortestDistance then
+                        closestEnemy = head
+                        shortestDistance = dist
                     end
                 end
             end
         end
     end
-    return closest
+    return closestEnemy
 end
 
+-- // Main Loop
 RunService.RenderStepped:Connect(function()
-    -- 1. FOV Circle Rendering Logic
-    if _G.AssistEnabled then
-        FOVCircle.Visible = true
-        FOVCircle.Radius = _G.AssistFOV
-        -- Centers the circle to the middle of the screen
+    -- Update Circle Properties every frame
+    if FOVCircle then
+        -- Only visible if BOTH the master toggle and FOV toggle are true
+        FOVCircle.Visible = (_G.AimAssistEnabled and _G.FOVVisible)
+        FOVCircle.Radius = _G.AimFOV
         FOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-    else
-        FOVCircle.Visible = false
     end
 
-    -- 2. Aim Assist Logic (Only runs if button is held)
-    if _G.AssistEnabled and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
-        local target = GetClosestTarget()
-        
+    -- Aim Logic
+    if _G.AimAssistEnabled and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
+        local target = GetClosestEnemy()
         if target then
-            local targetRotation = CFrame.new(Camera.CFrame.Position, target.Position)
-            
-            -- Smoothness math: Strength of 50 becomes 0.05
-            local lerpAlpha = math.clamp(_G.AssistStrength / 1000, 0.001, 0.5)
-            
-            Camera.CFrame = Camera.CFrame:Lerp(targetRotation, lerpAlpha)
+            local lookAt = CFrame.new(Camera.CFrame.Position, target.Position)
+            local alpha = math.clamp(_G.AimStrength / 500, 0, 1)
+            Camera.CFrame = Camera.CFrame:Lerp(lookAt, alpha)
         end
     end
 end)
