@@ -4,11 +4,21 @@ local Players = game:GetService("Players")
 local Camera = workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 
--- Configuration Variables
+-- // Configuration
 _G.AssistEnabled = true
-_G.AssistStrength = 0.05 -- 0.01 (Very Subtle) to 0.1 (Strong Pull)
+_G.AssistStrength = 50 -- 1 to 100 (Converted to 0.01 - 0.1 in math)
 _G.AssistFOV = 150
 _G.TargetPart = "Head"
+
+-- // Initialize FOV Circle
+local FOVCircle = Drawing.new("Circle")
+FOVCircle.Visible = false
+FOVCircle.Color = Color3.fromRGB(255, 255, 255) -- White
+FOVCircle.Thickness = 1
+FOVCircle.NumSides = 64
+FOVCircle.Radius = _G.AssistFOV
+FOVCircle.Filled = false
+FOVCircle.Transparency = 1
 
 local function GetClosestTarget()
     local closest = nil
@@ -18,7 +28,10 @@ local function GetClosestTarget()
     for _, player in pairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Team ~= LocalPlayer.Team and player.Character then
             local part = player.Character:FindFirstChild(_G.TargetPart)
-            if part then
+            local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+            
+            -- Basic checks to make sure they are alive and have a part to hit
+            if part and humanoid and humanoid.Health > 0 then
                 local pos, onScreen = Camera:WorldToViewportPoint(part.Position)
                 if onScreen then
                     local dist = (Vector2.new(pos.X, pos.Y) - center).Magnitude
@@ -34,17 +47,27 @@ local function GetClosestTarget()
 end
 
 RunService.RenderStepped:Connect(function()
-    if not _G.AssistEnabled then return end
+    -- 1. FOV Circle Rendering Logic
+    if _G.AssistEnabled then
+        FOVCircle.Visible = true
+        FOVCircle.Radius = _G.AssistFOV
+        -- Centers the circle to the middle of the screen
+        FOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    else
+        FOVCircle.Visible = false
+    end
 
-    -- Only execute if Right Mouse Button is currently held down
-    if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
+    -- 2. Aim Assist Logic (Only runs if button is held)
+    if _G.AssistEnabled and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
         local target = GetClosestTarget()
         
         if target then
             local targetRotation = CFrame.new(Camera.CFrame.Position, target.Position)
             
-            -- Smoothly transition the camera CFrame toward the target
-            Camera.CFrame = Camera.CFrame:Lerp(targetRotation, _G.AssistStrength)
+            -- Smoothness math: Strength of 50 becomes 0.05
+            local lerpAlpha = math.clamp(_G.AssistStrength / 1000, 0.001, 0.5)
+            
+            Camera.CFrame = Camera.CFrame:Lerp(targetRotation, lerpAlpha)
         end
     end
 end)
