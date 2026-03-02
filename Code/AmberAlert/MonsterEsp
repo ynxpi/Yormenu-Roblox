@@ -3,107 +3,146 @@ local RunService = game:GetService("RunService")
 local Camera = Workspace.CurrentCamera
 
 -- Global Toggle
-_G.MonsterESP_Enabled = true 
+_G.MonsterESP_Enabled = false
 
 local Settings = {
-    Box_Color = Color3.fromRGB(255, 0, 0), -- Change this for a different color
+    Box_Color = Color3.fromRGB(255, 0, 0), -- Red for Monsters
+    Text_Color = Color3.fromRGB(255, 255, 255),
     Thickness = 2,
-    Folder_Name = "Monsters" -- CHANGE THIS to the folder where your monsters are
+    Folder_Name = "Monsters" -- Ensure your monsters are in a folder named "Monsters"
 }
 
-local ActiveESP = {}
+local function CreateESP()
+    local labels = {
+        Box = {},
+        HealthBar = Drawing.new("Line"),
+        HealthBarBG = Drawing.new("Line"),
+        Info = Drawing.new("Text")
+    }
 
--- Function to create the 8 lines that make the corners
-local function CreateBox()
-    local lines = {}
+    -- Initialize 8 lines for the corner box
     for i = 1, 8 do
         local line = Drawing.new("Line")
-        line.Visible = false
-        line.Color = Settings.Box_Color
         line.Thickness = Settings.Thickness
-        line.Transparency = 1
-        lines[i] = line
+        line.Color = Settings.Box_Color
+        line.Visible = false
+        labels.Box[i] = line
     end
-    return lines
+
+    -- Setup Health Bar
+    labels.HealthBar.Thickness = 2
+    labels.HealthBarBG.Thickness = 2
+    labels.HealthBarBG.Color = Color3.fromRGB(0, 0, 0)
+    
+    -- Setup Text (Name & Distance)
+    labels.Info.Size = 16
+    labels.Info.Center = true
+    labels.Info.Outline = true
+    labels.Info.Color = Settings.Text_Color
+
+    return labels
 end
 
 local function TrackMonster(model)
-    if not model:IsA("Model") or ActiveESP[model] then return end
+    if not model:IsA("Model") then return end
     
-    local lines = CreateBox()
+    local esp = CreateESP()
     local connection
     
     connection = RunService.RenderStepped:Connect(function()
-        -- Only show if global toggle is ON and model exists
-        if _G.MonsterESP_Enabled and model and model.Parent then
-            local primary = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
-            
-            if primary then
+        local hum = model:FindFirstChildOfClass("Humanoid")
+        local primary = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
+
+        if _G.MonsterESP_Enabled and model.Parent and primary then
+            local screenPos, onScreen = Camera:WorldToViewportPoint(primary.Position)
+
+            if onScreen then
                 local _, size = model:GetBoundingBox()
-                local screenPos, onScreen = Camera:WorldToViewportPoint(primary.Position)
+                local dist = (Camera.CFrame.Position - primary.Position).Magnitude
+                
+                -- Calculations for Box size
+                local top = Camera:WorldToViewportPoint((primary.CFrame * CFrame.new(0, size.Y/2, 0)).Position)
+                local bottom = Camera:WorldToViewportPoint((primary.CFrame * CFrame.new(0, -size.Y/2, 0)).Position)
+                local height = math.abs(top.Y - bottom.Y)
+                local width = height / 1.5
+                local offset = math.clamp(1/dist * 750, 2, 30) 
 
-                if onScreen then
-                    local dist = (Camera.CFrame.Position - primary.Position).Magnitude
-                    -- This 'offset' controls how long the corner brackets are
-                    local offset = math.clamp(1/dist * 750, 2, 30) 
+                -- Corner Points
+                local TL = Vector2.new(screenPos.X - width/2, screenPos.Y - height/2)
+                local TR = Vector2.new(screenPos.X + width/2, screenPos.Y - height/2)
+                local BL = Vector2.new(screenPos.X - width/2, screenPos.Y + height/2)
+                local BR = Vector2.new(screenPos.X + width/2, screenPos.Y + height/2)
+
+                -- 1. Draw Corner Box
+                for _, l in pairs(esp.Box) do l.Visible = true end
+                esp.Box[1].From = TL; esp.Box[1].To = TL + Vector2.new(offset, 0)
+                esp.Box[2].From = TL; esp.Box[2].To = TL + Vector2.new(0, offset)
+                esp.Box[3].From = TR; esp.Box[3].To = TR + Vector2.new(-offset, 0)
+                esp.Box[4].From = TR; esp.Box[4].To = TR + Vector2.new(0, offset)
+                esp.Box[5].From = BL; esp.Box[5].To = BL + Vector2.new(offset, 0)
+                esp.Box[6].From = BL; esp.Box[6].To = BL + Vector2.new(0, -offset)
+                esp.Box[7].From = BR; esp.Box[7].To = BR + Vector2.new(-offset, 0)
+                esp.Box[8].From = BR; esp.Box[8].To = BR + Vector2.new(0, -offset)
+
+                -- 2. Draw Health Bar (Left Side)
+                if hum then
+                    local healthPercent = hum.Health / hum.MaxHealth
+                    local barX = TL.X - 5
                     
-                    local top = Camera:WorldToViewportPoint((primary.CFrame * CFrame.new(0, size.Y/2, 0)).Position)
-                    local bottom = Camera:WorldToViewportPoint((primary.CFrame * CFrame.new(0, -size.Y/2, 0)).Position)
-                    local height = math.abs(top.Y - bottom.Y)
-                    local width = height / 1.5
+                    esp.HealthBarBG.Visible = true
+                    esp.HealthBarBG.From = Vector2.new(barX, BL.Y)
+                    esp.HealthBarBG.To = Vector2.new(barX, TL.Y)
 
-                    -- Corner Points
-                    local TL = Vector2.new(screenPos.X - width/2, screenPos.Y - height/2)
-                    local TR = Vector2.new(screenPos.X + width/2, screenPos.Y - height/2)
-                    local BL = Vector2.new(screenPos.X - width/2, screenPos.Y + height/2)
-                    local BR = Vector2.new(screenPos.X + width/2, screenPos.Y + height/2)
-
-                    -- Drawing the 8 segments
-                    lines[1].From = TL; lines[1].To = TL + Vector2.new(offset, 0)
-                    lines[2].From = TL; lines[2].To = TL + Vector2.new(0, offset)
-                    lines[3].From = TR; lines[3].To = TR + Vector2.new(-offset, 0)
-                    lines[4].From = TR; lines[4].To = TR + Vector2.new(0, offset)
-                    lines[5].From = BL; lines[5].To = BL + Vector2.new(offset, 0)
-                    lines[6].From = BL; lines[6].To = BL + Vector2.new(0, -offset)
-                    lines[7].From = BR; lines[7].To = BR + Vector2.new(-offset, 0)
-                    lines[8].From = BR; lines[8].To = BR + Vector2.new(0, -offset)
-
-                    for _, l in pairs(lines) do l.Visible = true end
+                    esp.HealthBar.Visible = true
+                    esp.HealthBar.Color = Color3.fromHSV(healthPercent * 0.3, 1, 1) -- Dynamic Green to Red
+                    esp.HealthBar.From = Vector2.new(barX, BL.Y)
+                    esp.HealthBar.To = Vector2.new(barX, BL.Y - (height * healthPercent))
                 else
-                    for _, l in pairs(lines) do l.Visible = false end
+                    esp.HealthBar.Visible = false
+                    esp.HealthBarBG.Visible = false
                 end
+
+                -- 3. Draw Name & Distance (Bottom)
+                esp.Info.Visible = true
+                esp.Info.Position = Vector2.new(screenPos.X, BR.Y + 5)
+                esp.Info.Text = string.format("%s\n[%d m]", model.Name, math.floor(dist))
+            else
+                -- Offscreen
+                for _, l in pairs(esp.Box) do l.Visible = false end
+                esp.HealthBar.Visible = false
+                esp.HealthBarBG.Visible = false
+                esp.Info.Visible = false
             end
         else
-            -- Cleanup if disabled or model deleted
-            for _, l in pairs(lines) do l.Visible = false end
+            -- Disabled or model deleted
+            for _, l in pairs(esp.Box) do l.Visible = false end
+            esp.HealthBar.Visible = false
+            esp.HealthBarBG.Visible = false
+            esp.Info.Visible = false
             
             if not model or not model.Parent then
-                for _, l in pairs(lines) do l:Remove() end
+                for _, l in pairs(esp.Box) do l:Remove() end
+                esp.HealthBar:Remove()
+                esp.HealthBarBG:Remove()
+                esp.Info:Remove()
                 connection:Disconnect()
-                ActiveESP[model] = nil
             end
         end
     end)
-    
-    ActiveESP[model] = true
 end
 
--- Watcher to find the folder and its children
+-- Watcher
 local function InitializeWatcher()
     local folder = Workspace:WaitForChild(Settings.Folder_Name)
     
     for _, child in pairs(folder:GetChildren()) do
-        task.spawn(function() TrackMonster(child) end)
+        TrackMonster(child)
     end
     
     folder.ChildAdded:Connect(function(child)
-        task.wait(0.5) -- Wait for parts to load
+        task.wait(0.5) 
         TrackMonster(child)
     end)
 end
 
 task.spawn(InitializeWatcher)
-
--- Control Functions
-_G.EnableMonsterESP = function() _G.MonsterESP_Enabled = true end
-_G.DisableMonsterESP = function() _G.MonsterESP_Enabled = false end
